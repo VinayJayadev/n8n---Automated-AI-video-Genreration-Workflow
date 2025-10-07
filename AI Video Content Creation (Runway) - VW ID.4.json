@@ -1,0 +1,927 @@
+{
+  "name": "AI Video Content Creation (Runway) - VW ID.4",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Usage Process\n\n- Start: Click Execute Workflow on the canvas.\n\n- Input: In Chat Message, submit the Christmas storyline (optional image upload).\n\n- Scene build: Prompt Engineer returns clean JSON; Edit Fields extracts clean_scenes; Split Out iterates scenes.\n\n- Generate: HTTP Request posts each scene to KIE.AI Runway with model runway-duration-5-generate, aspectRatio 16:9, duration 5s, quality 720p, seed per scene.\n\n- Poll: Wait node pauses, then status endpoint is queried; loop repeats until videoInfo.videoUrl and imageUrl exist.\n\n- Validate: Video Complete? checks both URLs are non‑empty; on success, continue; on failure, wait and re‑poll.\n\n- Log: Set nodes bundle execution_id, scene_id, prompt, video_url, image_url.\n\n- Sheets: Append or update row in Google Sheets tab named VWID4_<exec_id>.\n\n- Publish: Notion block appends image (thumbnail) and video URL; Drive upload is optional.\n\n- Done: Workflow advances to the next scene automatically until all scenes are processed.",
+        "height": 500,
+        "width": 780
+      },
+      "id": "0ba8e9a2-ae87-4d70-bbf9-ed3fe3e12161",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        368,
+        384
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "## Overview\nThis workflow generates AI‑powered videos for the VW ID.4 from a structured scene breakdown using Gemini, then calls the KIE.AI Runway API, polls for completion, and publishes results to Google Sheets and Notion.\nUsers submit a storyline and optional assets, the pipeline creates scene prompts, requests a video, waits, retrieves video/image URLs, and writes a per‑scene log and links for downstream review.\n\n\n## Prerequisites\n- A KIE.AI account and API key for the Runway endpoints used by the HTTP Request nodes in “Send Video Generation Request to KIE.AI API” and “Obtain the generated status.”\n\n- Access to n8n with HTTP Request, Set, Split Out, Wait, If, Google Sheets, Google Drive (optional), and Notion nodes enabled.\n\n- Google credentials for the Sheets nodes and optional Drive upload, plus a Notion integration connected to the target block if using the Notion append step\n\n## Setup Instructions\n1. Import the provided workflow JSON into n8n (menu → Import workflow).\n\n2. Create credentials: KIE.AI API key (for Authorization header), Google Sheets OAuth2, Notion integration, and optionally Google Drive OAuth2.\n\n3. Open the node “Send Video Generation Request to KIE.AI API” and set headers (Content-Type: application/json; Authorization: Bearer YOUR_API_KEY); verify endpoint https://api.kie.ai/api/v1/runway/generate.\n\n4. Open the node “Obtain the generated status” and keep query param taskId mapped to {{$json.data.taskId}}; set the same Authorization header; verify endpoint https://api.kie.ai/api/v1/runway/record-detail.\n\n5. Review runtime parameters in the generate request body (model: runway-duration-5-generate, aspectRatio: 16:9, duration: 5, quality: 720p, seeds: 12345) and adjust if needed.\n\n6. Update Google Sheets settings: set documentId, confirm sheet title template (for example VWID4_{{ $execution.id }}), and ensure columns map to exec_id, prompt, video_url, image_url.\n\n7. Update Notion target (block/page URL) and share the page with the integration; optionally set Google Drive folder_id for uploads.\n\n8. Click Execute Workflow; in “Chat Message” submit the Christmas storyline (optionally attach an image); the pipeline will build scenes and submit each to KIE.AI.\n\n9. Allow polling to run; the workflow waits then rechecks status until videoInfo.videoUrl and imageUrl are available (IF node routes back to wait/retry if missing).\n\n10. Verify outputs: per‑scene links are logged to Google Sheets, Notion receives a block append, and Drive receives uploads if enabled.\n\n## Customization Tips\n**Enrich prompts** with consistent brand/style cues per scene, and keep seeds stable to improve reproducibility.\n\nAdjust **aspectRatio**, duration, and quality per scene or globally in the JSON body to balance fidelity and cost.\n\n",
+        "height": 1128,
+        "width": 780,
+        "color": 3
+      },
+      "id": "15709134-9fe8-4dac-8580-5d1684e55e91",
+      "name": "Sticky Note3",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -464,
+        -128
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.kie.ai/api/v1/runway/generate",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer <token>"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"prompt\": \"this is the video generation prompt - {{ $json.clean_scenes.image_prompt }}{{ $json.clean_scenes.image_prompt }}.\",\n  \"model\": \"runway-duration-5-generate\",\n  \"watermark\": \"\",\n  \"imageUrls\": \"https://ev-database.org/img/auto/Volkswagen_ID4_2024/Volkswagen_ID4_2024-01@2x.jpg\",\n  \"callBackUrl\": \"https://api.example.com/callback\",\n  \"aspectRatio\": \"16:9\",\n  \"seeds\": 12345,\n  \"duration\": 5,\n  \"quality\": \"720p\"\n}",
+        "options": {}
+      },
+      "id": "50b11dcd-275a-48c5-ac4e-4cae25e067a4",
+      "name": "Send Video Generation Request to KIE.AI API",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        0,
+        1088
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "amount": 60
+      },
+      "id": "022fecc6-9284-4c4b-a4d9-756f244a69aa",
+      "name": "Wait for Video Processing Completion",
+      "type": "n8n-nodes-base.wait",
+      "position": [
+        224,
+        1088
+      ],
+      "webhookId": "bb6c2821-9586-44b7-8606-2ee69a77ed75",
+      "typeVersion": 1.1,
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "url": "https://api.kie.ai/api/v1/runway/record-detail",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "taskId",
+              "value": "={{$json.data.taskId}}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer <token>"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8b61f6ba-0565-4100-80f3-30e30be081ec",
+      "name": "Obtain the generated status",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        448,
+        1104
+      ],
+      "typeVersion": 4.2,
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cb7deaed-98a1-448f-9fc6-99563b76c3f7",
+              "name": "prompt",
+              "value": "={{ $json.data.generateParam.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "fa5f375f-cddc-4f7b-a018-67c28015d18b",
+              "name": "video_url",
+              "type": "string",
+              "value": "={{ $json.data.videoInfo.videoUrl }}"
+            },
+            {
+              "id": "8f93e12e-13da-495f-a686-c0abc22f39d9",
+              "name": "image_url",
+              "type": "string",
+              "value": "={{ $json.data.videoInfo.imageUrl }}"
+            },
+            {
+              "id": "8d93f281-b8e4-4022-90b0-e33d84bc269c",
+              "name": "execution_id",
+              "value": "={{$execution.id}}",
+              "type": "string"
+            },
+            {
+              "id": "54a893a0-ad38-4ee1-99ea-deb592036244",
+              "name": "scene_id",
+              "value": "={{ $('Split Out').item.json.clean_scenes.scene_id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bff24bb8-9cc4-4e7b-b745-3576bcce2cc9",
+      "name": "Format and Display Video Results",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        896,
+        1056
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1tqRJnaeFnSvGbHd8uOMUC8YnU_LH4joN15x7qMbhDJA",
+          "mode": "list",
+          "cachedResultName": "N8N Workflow",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1tqRJnaeFnSvGbHd8uOMUC8YnU_LH4joN15x7qMbhDJA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "=VWID4_{{ $json.exec_id }}",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "exec_id",
+              "displayName": "exec_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "prompt",
+              "displayName": "prompt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "video_url",
+              "displayName": "video_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "image_url",
+              "displayName": "image_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1616,
+        1088
+      ],
+      "id": "c266d351-2838-4cc4-a8d1-5a8d5deabafe",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iwx3XB26cbFSHg9y",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "allowFileUploads": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1248,
+        1088
+      ],
+      "id": "9987e2b5-e32e-47a2-b1da-53d046bcc7f5",
+      "name": "Chat Message",
+      "webhookId": "462a9eee-e256-450d-8f97-f49916c61c57"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.0-flash-lite",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.0-flash-lite"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=You are an expert AI workflow assistant specializing in generating scene breakdowns for automated video creation pipelines.\n\n**Goal:**\nTake the user's storyline and style, and produce a structured set of scenes with detailed prompts for each scene and every scene should have the same characters.\n**Instructions:**\n1. Analyze the provided storyline and style.\n2. Break the storyline into **5–10 sequential scenes** that capture the narrative logically from start to finish.\n3. For each scene, include:\n   - **scene_id**: Sequential number starting at 1\n   - **visual_description**: A short, clear description of what happens in this scene\n   - **image_prompt**: A detailed prompt for the AI generator that includes:\n     - Composition (foreground, background, key objects)\n     - Lighting and mood\n     - Camera angle or framing\n     - Thematic details or environmental context\n   - **duration**: Suggested duration for this scene in seconds (5 seconds)\n   - **seed**: A random integer for reproducibility\n4. Follow the style provided by the user carefully.\n5. Do NOT hardcode any specific brands, objects, or subjects unless explicitly mentioned in the storyline.\n6. Output must be **clean JSON**, ready for the next node to process.\n\n**Output Format:**\nReturn ONLY valid JSON in this exact format:\n```json\n{\n  \"scenes\": [\n    {\n      \"scene_id\": 1,\n      \"visual_description\": \"Short description of the scene\",\n      \"image_prompt\": \"Detailed prompt for this scene\",\n      \"duration\": 5.0,\n      \"seed\": 12345\n    }\n  ]\n}\nInput story: {{ $json.chatInput }} and the reference image is {{ Object.keys($binary).map(k => ({ type: 'image', image_data: $binary[k].data, mime_type: $binary[k].mimeType })) }}"
+            }
+          ]
+        },
+        "simplify": false,
+        "jsonOutput": true,
+        "options": {
+          "temperature": 1
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -1024,
+        1088
+      ],
+      "id": "d17e5fa4-e902-467c-99bd-c44f0437975c",
+      "name": "Prompt Engineer",
+      "retryOnFail": false,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "RgXtlehDNAPLk7wc",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "d56071e2-05e6-47f0-9980-b5ed2366c904",
+      "name": "Loop Through Scenes",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 2,
+      "position": [
+        -448,
+        1088
+      ],
+      "inputs": {
+        "main": [
+          {
+            "id": "9218d6a7-05c7-45e0-8b67-d86018d9ef6f",
+            "name": "[!! CONFIGURE ME !!]\nLLM: Generate Scenes",
+            "type": "n8n-nodes-base.googleGeminiChat",
+            "version": 1,
+            "port": 0
+          }
+        ]
+      },
+      "inputData": {
+        "main": [
+          "={{ JSON.parse($json.choices[0].message.content).scenes }}"
+        ]
+      },
+      "alwaysOutputData": true,
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "bd0f2ef0-0642-458d-82d7-d7f011f77870",
+              "name": "clean_scenes",
+              "value": "={{ JSON.parse($json.candidates[0].content.parts[0].text).scenes }}",
+              "type": "array"
+            },
+            {
+              "id": "7fe655e4-eb26-4e56-ba67-d3bef09cab49",
+              "name": "chat_input",
+              "value": "={{ $('Chat Message').item.json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -672,
+        1088
+      ],
+      "id": "34b5a7a5-def1-42f2-b5e2-71d1873ffd26",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "clean_scenes",
+        "include": "allOtherFields",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -208,
+        1088
+      ],
+      "id": "68fa57fc-9fdc-4328-a443-fa71e34afed6",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "resource": "block",
+        "blockId": {
+          "__rl": true,
+          "value": "<notion_url",
+          "mode": "url"
+        },
+        "blockUi": {
+          "blockValues": [
+            {
+              "type": "image",
+              "url": "={{ $json.image_url }}"
+            },
+            {
+              "textContent": "={{ $json.video_url }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        2160,
+        800
+      ],
+      "id": "ebd0cd60-950d-4afa-bda3-ee2e1880bfc5",
+      "name": "Append a block",
+      "alwaysOutputData": true,
+      "credentials": {
+        "notionApi": {
+          "id": "uNeQRG6EUYLx5ppY",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1tqRJnaeFnSvGbHd8uOMUC8YnU_LH4joN15x7qMbhDJA",
+          "mode": "list",
+          "cachedResultName": "N8N Workflow",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1tqRJnaeFnSvGbHd8uOMUC8YnU_LH4joN15x7qMbhDJA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "=VW_{{ $execution.id }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2416,
+        2640
+      ],
+      "id": "625ad47d-a338-4381-a13f-92bf2b001294",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iwx3XB26cbFSHg9y",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "={{ (() => {\n  const u = $json.video_url;\n  let ext = '';\n  try { const last = (new URL(u)).pathname.split('/').pop() || ''; ext = last.includes('.') ? last.split('.').pop() : ''; } catch(e) {}\n  const ts = $now.toFormat('yyyyLLdd_HHmm'); // e.g., 20251005_1526\n  return `VW_ID4_${$execution.id}_${ts}${ext ? '.' + ext : '.mp4'}`;\n})() }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "value": "12dJsDO6Ha-hgYIkdeOsx1VIq-L3HTcq8",
+          "mode": "list",
+          "cachedResultName": "VWID4",
+          "cachedResultUrl": "<GDrive_URL>"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1552,
+        1536
+      ],
+      "id": "75710dc1-56a0-4399-8e3f-2480304e6b77",
+      "name": "Upload file",
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "TDBz0Zh0MPXxvcun",
+          "name": "Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.video_url }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "options": {}
+      },
+      "id": "a7b2348f-9e9c-42e3-a235-69287b8059bc",
+      "name": "Obtain the generated status1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1328,
+        1536
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "documentId": {
+          "__rl": true,
+          "value": "1tqRJnaeFnSvGbHd8uOMUC8YnU_LH4joN15x7qMbhDJA",
+          "mode": "list",
+          "cachedResultName": "N8N Workflow",
+          "cachedResultUrl": "<GSheets_Link>"
+        },
+        "title": "=VWID4_{{ $json.exec_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        928
+      ],
+      "id": "873badc1-a99d-4766-a659-1dd1d316a5f2",
+      "name": "Create sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iwx3XB26cbFSHg9y",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "03f6233e-dba9-43b8-aa30-833b00e51617",
+      "name": "Log Scene Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        2096,
+        2320
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 15
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2000,
+        960
+      ],
+      "id": "ac12ce9e-e211-4403-bab2-76c9fdabedf6",
+      "name": "Wait1",
+      "webhookId": "14b5264d-dd2b-4d84-bae3-2f08020e3f8a"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cb7deaed-98a1-448f-9fc6-99563b76c3f7",
+              "name": "exec_id",
+              "value": "={{ $('Format and Display Video Results').item.json.execution_id }}",
+              "type": "string"
+            },
+            {
+              "id": "731a4189-94d9-48cf-b64f-ff4aae92791c",
+              "name": "prompt",
+              "value": "={{ $json.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "a3cebe1e-34b9-4405-abae-eeaa216846df",
+              "name": "video_url",
+              "value": "={{ $json.video_url }}",
+              "type": "string"
+            },
+            {
+              "id": "602d49f3-5d77-4613-b746-209c45b70e58",
+              "name": "image_url",
+              "value": "={{ $json.image_url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "bd52d678-91a5-415b-91c4-b7c2a680bd1e",
+      "name": "Format and Display Video Results1",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1088,
+        1088
+      ],
+      "typeVersion": 3.4
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "documentId": {
+          "__rl": true,
+          "value": "1tqRJnaeFnSvGbHd8uOMUC8YnU_LH4joN15x7qMbhDJA",
+          "mode": "list",
+          "cachedResultName": "N8N Workflow",
+          "cachedResultUrl": "<GSheets_Link>"
+        },
+        "title": "=VWID4_{{ $json.execution_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2448,
+        2496
+      ],
+      "id": "769a0e75-f28e-406b-af69-658727c0dfe6",
+      "name": "Create sheet1",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "iwx3XB26cbFSHg9y",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "bacf72fe-523b-4600-88b8-dc8d557ed00c",
+              "leftValue": "={{ $json.data.videoInfo }}",
+              "rightValue": "\"\"",
+              "operator": {
+                "type": "object",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "80939581-6ad2-4a5f-8422-d92d6d3d697f",
+      "name": "Video Complete?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        656,
+        1104
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": false,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "amount": 20
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        832,
+        1232
+      ],
+      "id": "8c80392b-5318-4146-bd18-545493441e9f",
+      "name": "Wait2",
+      "webhookId": "14b5264d-dd2b-4d84-bae3-2f08020e3f8a",
+      "retryOnFail": false
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "cb7deaed-98a1-448f-9fc6-99563b76c3f7",
+              "name": "exec_id",
+              "value": "={{ $('Format and Display Video Results').item.json.execution_id }}",
+              "type": "string"
+            },
+            {
+              "id": "731a4189-94d9-48cf-b64f-ff4aae92791c",
+              "name": "prompt",
+              "value": "={{ $('Format and Display Video Results1').item.json.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "a3cebe1e-34b9-4405-abae-eeaa216846df",
+              "name": "video_url",
+              "value": "={{ $('Format and Display Video Results1').item.json.video_url }}",
+              "type": "string"
+            },
+            {
+              "id": "602d49f3-5d77-4613-b746-209c45b70e58",
+              "name": "image_url",
+              "value": "={{ $('Format and Display Video Results1').item.json.image_url }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6af61916-1d23-49ba-935f-6735b5403d27",
+      "name": "Format and Display Video Results2",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        2048,
+        2256
+      ],
+      "typeVersion": 3.4
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Obtain the generated status": {
+      "main": [
+        [
+          {
+            "node": "Video Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Video Processing Completion": {
+      "main": [
+        [
+          {
+            "node": "Obtain the generated status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Video Generation Request to KIE.AI API": {
+      "main": [
+        [
+          {
+            "node": "Wait for Video Processing Completion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format and Display Video Results": {
+      "main": [
+        [
+          {
+            "node": "Format and Display Video Results1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Message": {
+      "main": [
+        [
+          {
+            "node": "Prompt Engineer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prompt Engineer": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Scenes": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Scenes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Send Video Generation Request to KIE.AI API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        []
+      ]
+    },
+    "Append a block": {
+      "main": [
+        []
+      ]
+    },
+    "Obtain the generated status1": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create sheet": {
+      "main": [
+        []
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Append a block",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format and Display Video Results1": {
+      "main": [
+        [
+          {
+            "node": "Create sheet",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Obtain the generated status1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Video Complete?": {
+      "main": [
+        [
+          {
+            "node": "Format and Display Video Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait2": {
+      "main": [
+        [
+          {
+            "node": "Video Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format and Display Video Results2": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "903170eb-82bd-4a6e-a576-0d3e81cea39f",
+  "meta": {
+    "templateId": "6047",
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5c0d50856d3acdf35f0ed0c03ab7540e91fff2b2d1bc3955ee7af683864f3b75"
+  },
+  "id": "pkXiIaMUZQu5hcfi",
+  "tags": []
+}
