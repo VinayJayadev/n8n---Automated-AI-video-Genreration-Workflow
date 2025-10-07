@@ -5,7 +5,7 @@
 This workflow generates AI-powered Christmas-themed video sequences using a multi-stage pipeline. It breaks down storylines into scenes, creates branded video content, and logs results with full reproducibility tracking. The system automates from storyline input to generated video sequences suitable for marketing content creation.
 
 **Purpose**: Automated brand-compliant video generation for VW ID.4 Christmas campaigns  
-**Output**: 5-7 video sequences (~15 seconds total) with scene metadata and tracking  
+**Output**: 5-7 video sequences with scene metadata and tracking  
 **Integration**: Google Sheets logging, Notion publishing, optional Google Drive storage
 
 ---
