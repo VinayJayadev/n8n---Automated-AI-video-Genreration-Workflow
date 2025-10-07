@@ -1,4 +1,5 @@
 # GenAI Video generation Pipeline - Complete Documentation
+<img width="2546" height="682" alt="image" src="https://github.com/user-attachments/assets/e4d6a7df-8002-494f-9fb1-ec1723dd1cc9" />
 
 ## Overview
 This workflow generates AI-powered Christmas-themed video sequences using a multi-stage pipeline. It breaks down storylines into scenes, creates branded video content, and logs results with full reproducibility tracking. The system automates from storyline input to generated video sequences suitable for marketing content creation.
