@@ -37,7 +37,7 @@ This workflow generates AI-powered Christmas-themed video sequences using a mult
 **Key settings to verify:**
 - **Model**: `runway-duration-5-generate` (or preferred Runway model)
 - **Aspect Ratio**: `16:9` for landscape video output
-- **Duration**: 2-3 seconds per scene (5 seconds total per video)
+- **Duration**: 5 seconds per scene 
 - **Quality**: `720p` or `1080p` based on requirements
 - **Seeds**: Fixed integers for reproducible results
 
@@ -61,7 +61,7 @@ This workflow generates AI-powered Christmas-themed video sequences using a mult
 **Nodes**: Loop Through Scenes → Split Out → Video Generation
 - **Process**: Iterate through each scene individually
 - **API Call**: POST to KIE.AI Runway endpoint with scene-specific prompts
-- **Tracking**: Each scene gets unique ID and generation parameters
+- **Tracking**: Each scene gets a unique ID and generation parameters
 
 ### Stage 3: Video Generation & Polling
 **Nodes**: Send Request → Wait → Obtain Status → Video Complete?
